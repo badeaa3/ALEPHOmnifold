@@ -1,5 +1,6 @@
 # ALEPHOmnifold
 Analysis of archived ALEPH data using the Omnifold unfolding technique. 
+Dropbox paper link: https://www.dropbox.com/scl/fi/zwbvgwsjl65hnocm9i5gk/OmniFold-with-ALEPH-e-e-91-GeV.paper?dl=0&rlkey=we76ioljw0da3w8mcgixlcgu0
 
 In the `omnifold` folder the current analysis notebooks are listed below.
 - `OmniFold Demo ALEPH Open Data Linear Thrust.ipynb` - unifold applied to thrust
