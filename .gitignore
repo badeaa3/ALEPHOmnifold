@@ -1,0 +1,10 @@
+# python outputs
+omnifold/.ipynb_checkpoints/
+omnifold/__pycache__/
+
+# outputs from saving
+*.npy
+omnifold/ptktraining/
+
+# figures
+plots
