@@ -12,6 +12,9 @@ Tree definitions:
 - t = data or reco
 - tgen = generation level + hadronic event selection
 - tgenBefore = generation level without hadronic event selection
+
+Notes:
+- see to understand event/track selections https://www.dropbox.com/scl/fi/gqe7qgm4ygnr7xontuke4/ALEPH-Omnifold-073020.pdf?dl=0
 '''
 
 import uproot
@@ -24,7 +27,7 @@ def main():
     ops = options()
 
     # configurations
-    output = to_numpy(ops.i)
+    output = aleph_to_numpy(ops.i)
 
     # print summary
     for key, val in output.items():
@@ -36,7 +39,7 @@ def options():
     parser.add_argument("-i", help="Input file")
     return parser.parse_args()
 
-def to_numpy(fileName):
+def aleph_to_numpy(fileName):
 
     # load the data file and infer type (data or mc)
     file = uproot.open(fileName)
@@ -79,7 +82,7 @@ def to_numpy(fileName):
         # construct the final event selection
         for evsel in event_selections:
             output["truthWHES_passselection"]  = np.logical_and(output["truthWHES_passselection"],  np.array(file["t"][evsel])) # NOTE: this is the same as reco
-            output["truthWOHES_passselection"] = np.logical_and(output["truthWOHES_passselection"], np.array(file["tgenBefore"][evsel]))
+            # output["truthWOHES_passselection"] = np.logical_and(output["truthWOHES_passselection"], np.array(file["tgenBefore"][evsel])) # NOTE: in ridge paper we derived correction without event selections on tgenbefore
             output["reco_passselection"]       = np.logical_and(output["reco_passselection"],       np.array(file["t"][evsel]))
 
         return output
