@@ -2,8 +2,7 @@
 Author: Anthony Badea
 Date: January 30, 2022
 
-A python script that takes in the files and outputs a numpy array with 5 numbers:
-truth trust, reco thrust, event weight, passtruthselection, passrecoselection
+A python script that takes in the files and outputs a numpy array with the thrust value, event selections, and event weights.
 
 File names:
 data_fileName = 'LEP1Data{}_recons_aftercut-MERGED.root'.format(year), with year = 1992, 1993, 1994, 1995
