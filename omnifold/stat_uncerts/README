@@ -1,0 +1,2 @@
+- merge_lists.py processes the .root inputs and merges the tgen and tgenBefore branches
+- unfold_fullstats.py does the unfolding, run like python unfold_fullstats.py i j where i is the ensemble number (should be 0-9, above that the random seed changes) and j = 0 for nominal, j = 1 for data stat uncertainty and j = 2 for MC stat uncertainty.
