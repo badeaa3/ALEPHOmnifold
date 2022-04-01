@@ -15,6 +15,15 @@ Tree definitions:
 
 Notes:
 - see to understand event/track selections https://www.dropbox.com/scl/fi/gqe7qgm4ygnr7xontuke4/ALEPH-Omnifold-073020.pdf?dl=0
+
+Systematic uncertainty variation from https://arxiv.org/pdf/1906.00489.pdf:
+The required number of hits a track leaves in the ALEPH time projection chamber was varied from 4 to 7. 
+From this variation, the tracking uncertainty is estimated to be 0.7% in the lab coordinate analysis and 0.3% in the thrust coordinate analysis. 
+The hadronic event selection was studied by changing the required charged energy in an event to be 10 instead of 15 GeV. 
+... 
+An additional systematic of 0.2%-10% (0.1%-0.5%) in the lab (thrust) coordinate analysis is included to quantify the residual 
+uncertainty in the reconstruction effect correction factor derived from the pythia 6.1 archived MC sample, which is mainly from the 
+limited size of the archived MC sample.
 '''
 
 import uproot
