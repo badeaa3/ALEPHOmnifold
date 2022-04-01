@@ -5,6 +5,8 @@ omnifold/__pycache__/
 # outputs from saving
 *.npy
 omnifold/ptktraining/
+*.root
+*.exe
 
 # figures
 plots
