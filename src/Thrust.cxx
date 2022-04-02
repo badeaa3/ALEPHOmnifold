@@ -27,7 +27,7 @@ Default event selections:
 #include <vector>
 #include <iostream>
 
-std::map<std::string, float> getVariation(
+std::map<std::string, float> getTrackVariation(
   /* charged track selections */
   int nTPCcut, // 2PC paper value: 4
   float chargedTracksAbsCosThCut, // 0.94
@@ -46,6 +46,21 @@ std::map<std::string, float> getVariation(
     {"z0Cut", z0Cut},
     {"ECut", ECut},
     {"neutralTracksAbsCosThCut", neutralTracksAbsCosThCut}
+  };
+}
+
+std::map<std::string, float> getEventVariation(
+  /* event selections */
+  float TotalChgEnergyCut, // 2PC paper value: 15
+  float NTrkCut, // 5
+  float AbsCosSThetaCut, // 0.82
+  float NeuNchCut // 13
+) {
+  return std::map<std::string, float> {
+    {"TotalChgEnergyCut", TotalChgEnergyCut},
+    {"NTrkCut", NTrkCut},
+    {"AbsCosSThetaCut", AbsCosSThetaCut},
+    {"NeuNchCut", NeuNchCut}
   };
 }
 
@@ -93,16 +108,16 @@ int main(int argc, char* argv[]) {
   // create output file
   std::unique_ptr<TFile> fout (new TFile(outFileName.c_str(), "RECREATE"));
 
-  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Track Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::vector<std::map<std::string, float> > variations; // vector of variations
   // nominal values
-  variations.push_back(getVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98)); 
+  variations.push_back(getTrackVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
   // ntpc variations
-  for (int i = 0; i <= 7; i++){
-    if (i != variations.at(0)["nTPCcut"]){
-      variations.push_back(getVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
+  for (int i = 0; i <= 7; i++) {
+    if (i != variations.at(0)["nTPCcut"]) {
+      variations.push_back(getTrackVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
     }
-  } 
+  }
 
   // vectors for selected objects
   std::vector<int> selectedParts;
@@ -113,7 +128,7 @@ int main(int argc, char* argv[]) {
   std::unique_ptr<Sphericity> spher;
 
   // save variation definitions to a tree
-  std::unique_ptr<TTree> varDefs (new TTree("VariationDefinitions", ""));
+  std::unique_ptr<TTree> varDefs (new TTree("TrackVariationDefinitions", ""));
   int nTPCcut;
   float chargedTracksAbsCosThCut, ptCut, d0Cut, z0Cut, ECut, neutralTracksAbsCosThCut;
   varDefs->Branch("nTPCcut", &nTPCcut);
@@ -142,16 +157,45 @@ int main(int argc, char* argv[]) {
   }
   varDefs->Write();
 
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
+  std::vector<std::map<std::string, float> > eventVariations; // vector of variations
+  // nominal values
+  eventVariations.push_back(getEventVariation(15, 5, 0.82, 13));
+  // total charged energy variation
+  eventVariations.push_back(getEventVariation(10, 5, 0.82, 13));
+
+  // save variation definitions to a tree
+  std::unique_ptr<TTree> evtVarDefs (new TTree("EventVariationDefinitions", ""));
+  float TotalChgEnergyCut, AbsCosSThetaCut;
+  int NTrkCut, NeuNchCut;
+  evtVarDefs->Branch("TotalChgEnergyCut", &TotalChgEnergyCut);
+  evtVarDefs->Branch("AbsCosSThetaCut", &AbsCosSThetaCut);
+  evtVarDefs->Branch("NTrkCut", &NTrkCut);
+  evtVarDefs->Branch("NeuNchCut", &NeuNchCut);
+  for (int iV = 0; iV < eventVariations.size(); iV++) {
+    TotalChgEnergyCut = eventVariations.at(iV)["TotalChgEnergyCut"];
+    AbsCosSThetaCut = eventVariations.at(iV)["AbsCosSThetaCut"];
+    NTrkCut = eventVariations.at(iV)["NTrkCut"];
+    NeuNchCut = eventVariations.at(iV)["NeuNchCut"];
+    evtVarDefs->Fill();
+  }
+  evtVarDefs->Write();
+
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Data Tree %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TTree> tout (new TTree("t", ""));
-  std::vector<float> Thrust, TotalChgEnergy, STheta_copy;
+  std::vector<float> Thrust, TotalChgEnergy, STheta;
   std::vector<int> NTrk, Neu;
+  std::vector<std::vector<bool> > passEventSelection;
   tout->Branch("Thrust", &Thrust);
   tout->Branch("TotalChgEnergy", &TotalChgEnergy);
   tout->Branch("NTrk", &NTrk);
   tout->Branch("Neu", &Neu);
-  tout->Branch("STheta", &STheta_copy);
-  tout->Branch("passesNTupleAfterCut", &passesNTupleAfterCut);
+  tout->Branch("STheta", &STheta);
+  for (int iV = 0; iV < eventVariations.size(); iV++) {
+    // ANTHONY: you are here trying to figure out how to save the event selections
+    passEventSelection.push_back(std::vector<bool>());
+    tout->Branch("passEventSelection_" + std::to_string(iV), passEventSelection.at(iV));
+  }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
   int nEvents = 10; //t->GetEntries();
@@ -163,7 +207,7 @@ int main(int argc, char* argv[]) {
     TotalChgEnergy.clear();
     NTrk.clear();
     Neu.clear();
-    STheta_copy.clear();
+    STheta.clear();
     Thrust.clear();
     for (int iV = 0; iV < variations.size(); iV++) {
       selectedParts.at(iV) = 0;
@@ -174,6 +218,10 @@ int main(int argc, char* argv[]) {
       TotalChgEnergy.push_back(0);
       NTrk.push_back(0);
       Neu.push_back(0);
+    }
+    // clear event selections
+    for ( auto eVar : passEventSelection) {
+      eVar.clear();
     }
 
     // compute event selection variables
@@ -219,10 +267,22 @@ int main(int argc, char* argv[]) {
     for (int iV = 0; iV < variations.size(); iV++) {
       // sphericity
       spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
-      STheta_copy.push_back(spher->sphericityAxis().Theta());
+      STheta.push_back(spher->sphericityAxis().Theta());
       // thrust
       thrust = getThrust(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), THRUST::OPTIMAL); //, false, false, pDataReader.weight);
       Thrust.push_back(thrust.Mag());
+
+      // compute event selection passes
+      for (int iEV = 0; iEV < eventVariations.size(); iEV++) {
+        passEventSelection.at(iEV).push_back(
+          passesNTupleAfterCut == 1
+          && TotalChgEnergy.at(iV) >= eventVariations.at(iEV)["TotalChgEnergyCut"]
+          && NTrk.at(iV) >= eventVariations.at(iEV)["NTrk"]
+          && TMath::Abs(TMath::Cos(STheta.at(iV))) <= eventVariations.at(iEV)["AbsCosSThetaCut"]
+          && (NTrk.at(iV) + Neu.at(iV)) >= eventVariations.at(iEV)["NeuNchCut"]
+        );
+      }
+
     }
 
     // fill output tree
