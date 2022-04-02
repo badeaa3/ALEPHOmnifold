@@ -95,8 +95,14 @@ int main(int argc, char* argv[]) {
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::vector<std::map<std::string, float> > variations; // vector of variations
-  variations.push_back(getVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
-  variations.push_back(getVariation(3, 0.94, 0.2, 2, 10, 0.4, 0.98));
+  // nominal values
+  variations.push_back(getVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98)); 
+  // ntpc variations
+  for (int i = 0; i <= 7; i++){
+    if (i != variations.at(0)["nTPCcut"]){
+      variations.push_back(getVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
+    }
+  } 
 
   // vectors for selected objects
   std::vector<int> selectedParts;
