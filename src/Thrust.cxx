@@ -21,18 +21,41 @@ Default event selections:
 
 // thrust code
 #include "thrustTools.h"
+#include "sphericityTools.h"
 
 // c++ code
 #include <vector>
 #include <iostream>
 
+std::map<std::string, float> getVariation(
+  /* charged track selections */
+  int nTPCcut, // 2PC paper value: 4
+  float chargedTracksAbsCosThCut, // 0.94
+  float ptCut, // 0.2
+  float d0Cut, // 2
+  float z0Cut, // 10
+  /* neutral track selections */
+  float ECut, // 0.4
+  float neutralTracksAbsCosThCut // 0.98
+) {
+  return std::map<std::string, float> {
+    {"nTPCcut", nTPCcut},
+    {"chargedTracksAbsCosThCut", chargedTracksAbsCosThCut},
+    {"ptCut", ptCut},
+    {"d0Cut", d0Cut},
+    {"z0Cut", z0Cut},
+    {"ECut", ECut},
+    {"neutralTracksAbsCosThCut", neutralTracksAbsCosThCut}
+  };
+}
+
 int main(int argc, char* argv[]) {
 
-  // parse input
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% User Input %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::string inFileName = "/Users/anthonybadea/Documents/ALEPH/ALEPH/LEP1Data1992_recons_aftercut-MERGED.root";
   std::string outFileName = "thrust.root";
 
-  // load input data
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Input Data %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TFile> f (new TFile(inFileName.c_str(), "READ"));
   std::unique_ptr<TTree> t ((TTree*) f->Get("t"));
 
@@ -40,7 +63,6 @@ int main(int argc, char* argv[]) {
   int maxPart = 500;
   int nParticle;
   bool passesNTupleAfterCut;
-  float STheta;
   int pwflag[maxPart];
   float theta[maxPart];
   float pt[maxPart];
@@ -56,7 +78,6 @@ int main(int argc, char* argv[]) {
   // link memory
   t->SetBranchAddress("nParticle", &nParticle);
   t->SetBranchAddress("passesNTupleAfterCut", &passesNTupleAfterCut);
-  t->SetBranchAddress("STheta", &STheta);
   t->SetBranchAddress("pwflag", &pwflag);
   t->SetBranchAddress("theta", &theta);
   t->SetBranchAddress("pt", &pt);
@@ -69,90 +90,136 @@ int main(int argc, char* argv[]) {
   t->SetBranchAddress("pmag", &pmag);
   t->SetBranchAddress("mass", &mass);
 
-  // create output tree
+  // create output file
   std::unique_ptr<TFile> fout (new TFile(outFileName.c_str(), "RECREATE"));
-  std::unique_ptr<TTree> tout (new TTree("t", ""));
-  float Thrust, TotalChgEnergy, STheta_copy;
-  int NTrk, Neu, passesNTupleAfterCut_copy;
-  tout->Branch("Thrust", &Thrust, "Thrust/F");
-  tout->Branch("TotalChgEnergy", &TotalChgEnergy, "TotalChgEnergy/F");
-  tout->Branch("NTrk", &NTrk, "NTrk/I");
-  tout->Branch("Neu", &Neu, "Neu/I");
-  tout->Branch("STheta", &STheta_copy, "STheta/F");
-  tout->Branch("passesNTupleAfterCut", &passesNTupleAfterCut_copy, "passesNTupleAfterCut/I");
 
-  // variables used in loop
-  int selectedParts;
-  std::vector<float> selectedPx, selectedPy, selectedPz;
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
+  std::vector<std::map<std::string, float> > variations; // vector of variations
+  variations.push_back(getVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
+  variations.push_back(getVariation(3, 0.94, 0.2, 2, 10, 0.4, 0.98));
+
+  // vectors for selected objects
+  std::vector<int> selectedParts;
+  std::vector<std::vector<float> > selectedPx, selectedPy, selectedPz;
+  std::vector<std::vector<Short_t> > selectedPwflag;
+  // event level quantities
   TVector3 thrust;
+  std::unique_ptr<Sphericity> spher;
 
-  // charged track selections
-  bool chargedTrackSelections;
-  int nTPCcut = 4;
-  float chargedTracksAbsCosThCut = 0.94; //maximum abs(cos(th)) of charged tracks
-  float ptCut = 0.2;
-  float d0Cut = 2;
-  float z0Cut = 10;
+  // save variation definitions to a tree
+  std::unique_ptr<TTree> varDefs (new TTree("VariationDefinitions", ""));
+  int nTPCcut;
+  float chargedTracksAbsCosThCut, ptCut, d0Cut, z0Cut, ECut, neutralTracksAbsCosThCut;
+  varDefs->Branch("nTPCcut", &nTPCcut);
+  varDefs->Branch("chargedTracksAbsCosThCut", &chargedTracksAbsCosThCut);
+  varDefs->Branch("ptCut", &ptCut);
+  varDefs->Branch("d0Cut", &d0Cut);
+  varDefs->Branch("z0Cut", &z0Cut);
+  varDefs->Branch("ECut", &ECut);
+  varDefs->Branch("neutralTracksAbsCosThCut", &neutralTracksAbsCosThCut);
 
-  // neutral track selections
-  bool neutralTrackSelections;
-  float ECut = 0.4;
-  float neutralTracksAbsCosThCut = 0.98; //maximum abs(cos(th)) of charged NeutralHadrons
+  // push back for each variation and save to tree
+  for (int iV = 0; iV < variations.size(); iV++) {
+    selectedParts.push_back(0);
+    selectedPx.push_back(std::vector<float>());
+    selectedPy.push_back(std::vector<float>());
+    selectedPz.push_back(std::vector<float>());
+    selectedPwflag.push_back(std::vector<Short_t>());
+    nTPCcut = variations.at(iV)["nTPCcut"];
+    chargedTracksAbsCosThCut = variations.at(iV)["chargedTracksAbsCosThCut"];
+    ptCut = variations.at(iV)["ptCut"];
+    d0Cut = variations.at(iV)["d0Cut"];
+    z0Cut = variations.at(iV)["z0Cut"];
+    ECut = variations.at(iV)["ECut"];
+    neutralTracksAbsCosThCut = variations.at(iV)["neutralTracksAbsCosThCut"];
+    varDefs->Fill();
+  }
+  varDefs->Write();
 
-  // loop over events
-  int nEvents = t->GetEntries();
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Data Tree %%%%%%%%%%%%%%%%%%%%%%%%%%#
+  std::unique_ptr<TTree> tout (new TTree("t", ""));
+  std::vector<float> Thrust, TotalChgEnergy, STheta_copy;
+  std::vector<int> NTrk, Neu;
+  tout->Branch("Thrust", &Thrust);
+  tout->Branch("TotalChgEnergy", &TotalChgEnergy);
+  tout->Branch("NTrk", &NTrk);
+  tout->Branch("Neu", &Neu);
+  tout->Branch("STheta", &STheta_copy);
+  tout->Branch("passesNTupleAfterCut", &passesNTupleAfterCut);
+
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
+  int nEvents = 10; //t->GetEntries();
   for (int iE = 0; iE < nEvents; iE++ ) {
 
     t->GetEntry(iE);
 
     // reset variables
-    TotalChgEnergy = 0;
-    NTrk = 0;
-    Neu = 0;
-    STheta_copy = STheta;
-    passesNTupleAfterCut_copy = passesNTupleAfterCut;
-    selectedParts = 0;
-    selectedPx.clear();
-    selectedPy.clear();
-    selectedPz.clear();
+    TotalChgEnergy.clear();
+    NTrk.clear();
+    Neu.clear();
+    STheta_copy.clear();
+    Thrust.clear();
+    for (int iV = 0; iV < variations.size(); iV++) {
+      selectedParts.at(iV) = 0;
+      selectedPx.at(iV).clear();
+      selectedPy.at(iV).clear();
+      selectedPz.at(iV).clear();
+      selectedPwflag.at(iV).clear();
+      TotalChgEnergy.push_back(0);
+      NTrk.push_back(0);
+      Neu.push_back(0);
+    }
 
     // compute event selection variables
     for (int iP = 0; iP < nParticle; iP++) {
 
-      // count charged tracks
-      bool chargedTrackSelections =
-        (pwflag[iP] >= 0 && pwflag[iP] <= 2)
-        && TMath::Abs(cos(theta[iP])) <= chargedTracksAbsCosThCut
-        && pt[iP] >= ptCut
-        && TMath::Abs(d0[iP]) <= d0Cut
-        && TMath::Abs(z0[iP]) <= z0Cut
-        && ntpc[iP] >= nTPCcut;
-      if (chargedTrackSelections) {
-        TotalChgEnergy += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
-        NTrk += 1;
-      }
+      // loop over variations
+      for (int iV = 0; iV < variations.size(); iV++) {
 
-      // count neutral tracks
-      bool neutralTrackSelections =
-        (pwflag[iP] == 4 || pwflag[iP] == 5)
-        && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= ECut
-        && TMath::Abs(cos(theta[iP])) <= neutralTracksAbsCosThCut;
-      if (neutralTrackSelections) {
-        Neu += 1;
-      }
+        // count charged tracks
+        bool chargedTrackSelections =
+          (pwflag[iP] >= 0 && pwflag[iP] <= 2)
+          && TMath::Abs(cos(theta[iP])) <= variations.at(iV)["chargedTracksAbsCosThCut"]
+          && pt[iP] >= variations.at(iV)["ptCut"]
+          && TMath::Abs(d0[iP]) <= variations.at(iV)["d0Cut"]
+          && TMath::Abs(z0[iP]) <= variations.at(iV)["z0Cut"]
+          && ntpc[iP] >= variations.at(iV)["nTPCcut"];
+        if (chargedTrackSelections) {
+          TotalChgEnergy.at(iV) += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
+          NTrk.at(iV) += 1;
+        }
 
-      // add to input list for thrust
-      selectedParts += 1;
-      selectedPx.push_back(px[iP]);
-      selectedPy.push_back(py[iP]);
-      selectedPz.push_back(pz[iP]);
+        // count neutral tracks
+        bool neutralTrackSelections =
+          (pwflag[iP] == 4 || pwflag[iP] == 5)
+          && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= variations.at(iV)["ECut"]
+          && TMath::Abs(cos(theta[iP])) <= variations.at(iV)["neutralTracksAbsCosThCut"];
+        if (neutralTrackSelections) {
+          Neu.at(iV) += 1;
+        }
+
+        // add to input list for thrust
+        if (chargedTrackSelections || neutralTrackSelections) {
+          selectedParts.at(iV) += 1;
+          selectedPx.at(iV).push_back(px[iP]);
+          selectedPy.at(iV).push_back(py[iP]);
+          selectedPz.at(iV).push_back(pz[iP]);
+          selectedPwflag.at(iV).push_back(pwflag[iP]);
+        }
+      }
     }
 
-    // compute thrust
-    thrust = getThrust(selectedParts, selectedPx.data(), selectedPy.data(), selectedPz.data(), THRUST::OPTIMAL); //, false, false, pDataReader.weight);
+    // compute event level variables
+    for (int iV = 0; iV < variations.size(); iV++) {
+      // sphericity
+      spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
+      STheta_copy.push_back(spher->sphericityAxis().Theta());
+      // thrust
+      thrust = getThrust(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), THRUST::OPTIMAL); //, false, false, pDataReader.weight);
+      Thrust.push_back(thrust.Mag());
+    }
 
     // fill output tree
-    Thrust = thrust.Mag();
     tout->Fill();
   }
 
