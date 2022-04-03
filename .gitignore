@@ -2,11 +2,12 @@
 omnifold/.ipynb_checkpoints/
 omnifold/__pycache__/
 
-# outputs from saving
+# extensions
 *.npy
-omnifold/ptktraining/
+*.npz
 *.root
 *.exe
 
-# figures
+# folders
 plots
+omnifold/ptktraining/
