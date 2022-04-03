@@ -18,6 +18,7 @@ Default event selections:
 #include "TFile.h"
 #include "TVector3.h"
 #include "TMath.h"
+#include "TString.h"
 
 // thrust code
 #include "thrustTools.h"
@@ -105,17 +106,17 @@ int main(int argc, char* argv[]) {
   t->SetBranchAddress("pmag", &pmag);
   t->SetBranchAddress("mass", &mass);
 
-  // create output file
+  // #%%%%%%%%%%%%%%%%%%%%%%%%%% Output File %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TFile> fout (new TFile(outFileName.c_str(), "RECREATE"));
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Track Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  std::vector<std::map<std::string, float> > variations; // vector of variations
+  std::vector<std::map<std::string, float> > trackVariations; // vector of variations
   // nominal values
-  variations.push_back(getTrackVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
+  trackVariations.push_back(getTrackVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
   // ntpc variations
   for (int i = 0; i <= 7; i++) {
-    if (i != variations.at(0)["nTPCcut"]) {
-      variations.push_back(getTrackVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
+    if (i != trackVariations.at(0)["nTPCcut"]) {
+      trackVariations.push_back(getTrackVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
     }
   }
 
@@ -140,19 +141,19 @@ int main(int argc, char* argv[]) {
   varDefs->Branch("neutralTracksAbsCosThCut", &neutralTracksAbsCosThCut);
 
   // push back for each variation and save to tree
-  for (int iV = 0; iV < variations.size(); iV++) {
+  for (int iV = 0; iV < trackVariations.size(); iV++) {
     selectedParts.push_back(0);
     selectedPx.push_back(std::vector<float>());
     selectedPy.push_back(std::vector<float>());
     selectedPz.push_back(std::vector<float>());
     selectedPwflag.push_back(std::vector<Short_t>());
-    nTPCcut = variations.at(iV)["nTPCcut"];
-    chargedTracksAbsCosThCut = variations.at(iV)["chargedTracksAbsCosThCut"];
-    ptCut = variations.at(iV)["ptCut"];
-    d0Cut = variations.at(iV)["d0Cut"];
-    z0Cut = variations.at(iV)["z0Cut"];
-    ECut = variations.at(iV)["ECut"];
-    neutralTracksAbsCosThCut = variations.at(iV)["neutralTracksAbsCosThCut"];
+    nTPCcut = trackVariations.at(iV)["nTPCcut"];
+    chargedTracksAbsCosThCut = trackVariations.at(iV)["chargedTracksAbsCosThCut"];
+    ptCut = trackVariations.at(iV)["ptCut"];
+    d0Cut = trackVariations.at(iV)["d0Cut"];
+    z0Cut = trackVariations.at(iV)["z0Cut"];
+    ECut = trackVariations.at(iV)["ECut"];
+    neutralTracksAbsCosThCut = trackVariations.at(iV)["neutralTracksAbsCosThCut"];
     varDefs->Fill();
   }
   varDefs->Write();
@@ -185,16 +186,14 @@ int main(int argc, char* argv[]) {
   std::unique_ptr<TTree> tout (new TTree("t", ""));
   std::vector<float> Thrust, TotalChgEnergy, STheta;
   std::vector<int> NTrk, Neu;
-  std::vector<std::vector<bool> > passEventSelection;
+  std::vector<std::vector<bool> > passEventSelection(eventVariations.size()); // allocate memory here without push_back to avoid copying which confuses tree->Branch
   tout->Branch("Thrust", &Thrust);
   tout->Branch("TotalChgEnergy", &TotalChgEnergy);
   tout->Branch("NTrk", &NTrk);
   tout->Branch("Neu", &Neu);
   tout->Branch("STheta", &STheta);
   for (int iV = 0; iV < eventVariations.size(); iV++) {
-    // ANTHONY: you are here trying to figure out how to save the event selections
-    passEventSelection.push_back(std::vector<bool>());
-    tout->Branch("passEventSelection_" + std::to_string(iV), passEventSelection.at(iV));
+    tout->Branch(("passEventSelection_" + std::to_string(iV)).c_str(), &passEventSelection.at(iV));
   }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
@@ -209,7 +208,7 @@ int main(int argc, char* argv[]) {
     Neu.clear();
     STheta.clear();
     Thrust.clear();
-    for (int iV = 0; iV < variations.size(); iV++) {
+    for (int iV = 0; iV < trackVariations.size(); iV++) {
       selectedParts.at(iV) = 0;
       selectedPx.at(iV).clear();
       selectedPy.at(iV).clear();
@@ -219,25 +218,22 @@ int main(int argc, char* argv[]) {
       NTrk.push_back(0);
       Neu.push_back(0);
     }
-    // clear event selections
-    for ( auto eVar : passEventSelection) {
-      eVar.clear();
-    }
+    for (auto &ev : passEventSelection) ev.clear();
 
     // compute event selection variables
     for (int iP = 0; iP < nParticle; iP++) {
 
       // loop over variations
-      for (int iV = 0; iV < variations.size(); iV++) {
+      for (int iV = 0; iV < trackVariations.size(); iV++) {
 
         // count charged tracks
         bool chargedTrackSelections =
           (pwflag[iP] >= 0 && pwflag[iP] <= 2)
-          && TMath::Abs(cos(theta[iP])) <= variations.at(iV)["chargedTracksAbsCosThCut"]
-          && pt[iP] >= variations.at(iV)["ptCut"]
-          && TMath::Abs(d0[iP]) <= variations.at(iV)["d0Cut"]
-          && TMath::Abs(z0[iP]) <= variations.at(iV)["z0Cut"]
-          && ntpc[iP] >= variations.at(iV)["nTPCcut"];
+          && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["chargedTracksAbsCosThCut"]
+          && pt[iP] >= trackVariations.at(iV)["ptCut"]
+          && TMath::Abs(d0[iP]) <= trackVariations.at(iV)["d0Cut"]
+          && TMath::Abs(z0[iP]) <= trackVariations.at(iV)["z0Cut"]
+          && ntpc[iP] >= trackVariations.at(iV)["nTPCcut"];
         if (chargedTrackSelections) {
           TotalChgEnergy.at(iV) += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
           NTrk.at(iV) += 1;
@@ -246,8 +242,8 @@ int main(int argc, char* argv[]) {
         // count neutral tracks
         bool neutralTrackSelections =
           (pwflag[iP] == 4 || pwflag[iP] == 5)
-          && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= variations.at(iV)["ECut"]
-          && TMath::Abs(cos(theta[iP])) <= variations.at(iV)["neutralTracksAbsCosThCut"];
+          && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= trackVariations.at(iV)["ECut"]
+          && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["neutralTracksAbsCosThCut"];
         if (neutralTrackSelections) {
           Neu.at(iV) += 1;
         }
@@ -264,7 +260,8 @@ int main(int argc, char* argv[]) {
     }
 
     // compute event level variables
-    for (int iV = 0; iV < variations.size(); iV++) {
+    for (int iV = 0; iV < trackVariations.size(); iV++) {
+
       // sphericity
       spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
       STheta.push_back(spher->sphericityAxis().Theta());
@@ -282,11 +279,11 @@ int main(int argc, char* argv[]) {
           && (NTrk.at(iV) + Neu.at(iV)) >= eventVariations.at(iEV)["NeuNchCut"]
         );
       }
-
     }
 
     // fill output tree
     tout->Fill();
+
   }
 
   // write to output file
