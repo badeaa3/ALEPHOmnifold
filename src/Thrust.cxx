@@ -88,6 +88,7 @@ int main(int argc, char* argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i + 1];
     if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i + 1];
+    // if (strncmp(argv[i], "-t", 2) == 0) treeName = argv[i + 1];
     if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i + 1]);
     if (strncmp(argv[i], "--debug", 7) == 0) debug = true;
   }
@@ -100,10 +101,15 @@ int main(int argc, char* argv[]) {
     outFileName.erase(outFileName.length() - 5); // strip .root
     outFileName += "_thrust.root";
   }
+  // set tree names
+  std::vector<std::string> treeNames{"t"};
+  if (inFileName.find("LEP1Data") == std::string::npos) {
+    treeNames.push_back("tgen");
+    treeNames.push_back("tgenBefore");
+  }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Input Data %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TFile> f (new TFile(inFileName.c_str(), "READ"));
-  std::unique_ptr<TTree> t ((TTree*) f->Get("t"));
 
   // declare variables
   int maxPart = 500;
@@ -120,21 +126,6 @@ int main(int argc, char* argv[]) {
   float pz[maxPart];
   float pmag[maxPart];
   float mass[maxPart];
-
-  // link memory
-  t->SetBranchAddress("nParticle", &nParticle);
-  t->SetBranchAddress("passesNTupleAfterCut", &passesNTupleAfterCut);
-  t->SetBranchAddress("pwflag", &pwflag);
-  t->SetBranchAddress("theta", &theta);
-  t->SetBranchAddress("pt", &pt);
-  t->SetBranchAddress("d0", &d0);
-  t->SetBranchAddress("z0", &z0);
-  t->SetBranchAddress("ntpc", &ntpc);
-  t->SetBranchAddress("px", &px);
-  t->SetBranchAddress("py", &py);
-  t->SetBranchAddress("pz", &pz);
-  t->SetBranchAddress("pmag", &pmag);
-  t->SetBranchAddress("mass", &mass);
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Output File %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TFile> fout (new TFile(outFileName.c_str(), "RECREATE"));
@@ -213,130 +204,150 @@ int main(int argc, char* argv[]) {
   evtVarDefs->Write();
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Data Tree %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  std::unique_ptr<TTree> tout (new TTree("t", ""));
   std::vector<float> Thrust, TotalChgEnergy, STheta;
   std::vector<int> NTrk, Neu;
   std::vector<std::vector<bool> > passEventSelection(eventVariations.size()); // allocate memory here without push_back to avoid copying which confuses tree->Branch
-  tout->Branch("Thrust", &Thrust);
-  tout->Branch("TotalChgEnergy", &TotalChgEnergy);
-  tout->Branch("NTrk", &NTrk);
-  tout->Branch("Neu", &Neu);
-  tout->Branch("STheta", &STheta);
-  for (int iV = 0; iV < eventVariations.size(); iV++) {
-    tout->Branch(("passEventSelection_" + std::to_string(iV)).c_str(), &passEventSelection.at(iV));
-  }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  if (nEvents == -1) nEvents = t->GetEntries();
+
   // timekeeper
-  std::chrono::time_point<std::chrono::system_clock> time_start = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> time_start;
   std::chrono::duration<double> elapsed_seconds;
 
-  for (int iE = 0; iE < nEvents; iE++ ) {
+  // loop over trees
+  for (auto &tree : treeNames) {
 
-    // progressbar
-    if (!debug) {
-      elapsed_seconds = (std::chrono::system_clock::now() - time_start);
-      pbftp(elapsed_seconds.count(), iE + 1, nEvents);
+    std::cout<<TString::Format("Looping over tree: %s", tree.c_str())<<std::endl;
+
+    // load input tree
+    std::unique_ptr<TTree> t ((TTree*) f->Get(tree.c_str()));
+    t->SetBranchAddress("nParticle", &nParticle);
+    t->SetBranchAddress("passesNTupleAfterCut", &passesNTupleAfterCut);
+    t->SetBranchAddress("pwflag", &pwflag);
+    t->SetBranchAddress("theta", &theta);
+    t->SetBranchAddress("pt", &pt);
+    t->SetBranchAddress("d0", &d0);
+    t->SetBranchAddress("z0", &z0);
+    t->SetBranchAddress("ntpc", &ntpc);
+    t->SetBranchAddress("px", &px);
+    t->SetBranchAddress("py", &py);
+    t->SetBranchAddress("pz", &pz);
+    t->SetBranchAddress("pmag", &pmag);
+    t->SetBranchAddress("mass", &mass);
+
+    // create output tree
+    std::unique_ptr<TTree> tout (new TTree(tree.c_str(), ""));
+    tout->Branch("Thrust", &Thrust);
+    tout->Branch("TotalChgEnergy", &TotalChgEnergy);
+    tout->Branch("NTrk", &NTrk);
+    tout->Branch("Neu", &Neu);
+    tout->Branch("STheta", &STheta);
+    for (int iV = 0; iV < eventVariations.size(); iV++) {
+      tout->Branch(("passEventSelection_" + std::to_string(iV)).c_str(), &passEventSelection.at(iV));
     }
 
-    t->GetEntry(iE);
+    // do event loop
+    if (nEvents == -1) nEvents = t->GetEntries();
+    time_start = std::chrono::system_clock::now();
 
-    // reset variables
-    TotalChgEnergy.clear();
-    NTrk.clear();
-    Neu.clear();
-    STheta.clear();
-    Thrust.clear();
-    for (int iV = 0; iV < trackVariations.size(); iV++) {
-      selectedParts.at(iV) = 0;
-      selectedPx.at(iV).clear();
-      selectedPy.at(iV).clear();
-      selectedPz.at(iV).clear();
-      selectedPwflag.at(iV).clear();
-      TotalChgEnergy.push_back(0);
-      NTrk.push_back(0);
-      Neu.push_back(0);
-    }
-    for (auto &ev : passEventSelection) ev.clear();
+    for (int iE = 0; iE < nEvents; iE++ ) {
 
-    // compute event selection variables
-    for (int iP = 0; iP < nParticle; iP++) {
+      // progressbar
+      if (!debug) {
+        elapsed_seconds = (std::chrono::system_clock::now() - time_start);
+        pbftp(elapsed_seconds.count(), iE + 1, nEvents);
+      }
 
-      // std::cout<<TString::Format("%d, %d, %f, %f, %f, %f, %d", iP, pwflag[iP], theta[iP], pt[iP], d0[iP], z0[iP], ntpc[iP]) <<std::endl;
+      t->GetEntry(iE);
 
-      // loop over variations
+      // reset variables
+      TotalChgEnergy.clear();
+      NTrk.clear();
+      Neu.clear();
+      STheta.clear();
+      Thrust.clear();
+      for (int iV = 0; iV < trackVariations.size(); iV++) {
+        selectedParts.at(iV) = 0;
+        selectedPx.at(iV).clear();
+        selectedPy.at(iV).clear();
+        selectedPz.at(iV).clear();
+        selectedPwflag.at(iV).clear();
+        TotalChgEnergy.push_back(0);
+        NTrk.push_back(0);
+        Neu.push_back(0);
+      }
+      for (auto &ev : passEventSelection) ev.clear();
+
+      // compute event selection variables
+      for (int iP = 0; iP < nParticle; iP++) {
+
+        // std::cout<<TString::Format("%d, %d, %f, %f, %f, %f, %d", iP, pwflag[iP], theta[iP], pt[iP], d0[iP], z0[iP], ntpc[iP]) <<std::endl;
+
+        // loop over variations
+        for (int iV = 0; iV < trackVariations.size(); iV++) {
+
+          // count charged tracks
+          bool chargedTrackSelections =
+            (pwflag[iP] >= 0 && pwflag[iP] <= 2)
+            && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["chargedTracksAbsCosThCut"]
+            && pt[iP] >= trackVariations.at(iV)["ptCut"]
+            && TMath::Abs(d0[iP]) <= trackVariations.at(iV)["d0Cut"]
+            && TMath::Abs(z0[iP]) <= trackVariations.at(iV)["z0Cut"]
+            && ntpc[iP] >= trackVariations.at(iV)["nTPCcut"];
+          if (chargedTrackSelections) {
+            TotalChgEnergy.at(iV) += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
+            NTrk.at(iV) += 1;
+          }
+
+          // count neutral tracks
+          bool neutralTrackSelections =
+            (pwflag[iP] == 4 || pwflag[iP] == 5)
+            && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= trackVariations.at(iV)["ECut"]
+            && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["neutralTracksAbsCosThCut"];
+          if (neutralTrackSelections) {
+            Neu.at(iV) += 1;
+          }
+
+          // add to input list for thrust
+          if (chargedTrackSelections || neutralTrackSelections) {
+            selectedParts.at(iV) += 1;
+            selectedPx.at(iV).push_back(px[iP]);
+            selectedPy.at(iV).push_back(py[iP]);
+            selectedPz.at(iV).push_back(pz[iP]);
+            selectedPwflag.at(iV).push_back(pwflag[iP]);
+          }
+        }
+      }
+
+      // compute event level variables
       for (int iV = 0; iV < trackVariations.size(); iV++) {
 
-        // count charged tracks
-        bool chargedTrackSelections =
-          (pwflag[iP] >= 0 && pwflag[iP] <= 2)
-          && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["chargedTracksAbsCosThCut"]
-          && pt[iP] >= trackVariations.at(iV)["ptCut"]
-          && TMath::Abs(d0[iP]) <= trackVariations.at(iV)["d0Cut"]
-          && TMath::Abs(z0[iP]) <= trackVariations.at(iV)["z0Cut"]
-          && ntpc[iP] >= trackVariations.at(iV)["nTPCcut"];
-        if (chargedTrackSelections) {
-          TotalChgEnergy.at(iV) += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
-          NTrk.at(iV) += 1;
+        // sphericity
+        spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
+        STheta.push_back(spher->sphericityAxis().Theta());
+        // thrust
+        thrust = getThrust(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), THRUST::OPTIMAL); //, false, false, pDataReader.weight);
+        Thrust.push_back(thrust.Mag());
+
+        // compute event selection passes
+        for (int iEV = 0; iEV < eventVariations.size(); iEV++) {
+          passEventSelection.at(iEV).push_back(
+            passesNTupleAfterCut == 1
+            && TotalChgEnergy.at(iV) >= eventVariations.at(iEV)["TotalChgEnergyCut"]
+            && TMath::Abs(TMath::Cos(STheta.at(iV))) <= eventVariations.at(iEV)["AbsCosSThetaCut"]
+            && NTrk.at(iV) >= eventVariations.at(iEV)["NTrkCut"]
+            && (NTrk.at(iV) + Neu.at(iV)) >= eventVariations.at(iEV)["NeuNchCut"]
+          );
         }
 
-        // count neutral tracks
-        bool neutralTrackSelections =
-          (pwflag[iP] == 4 || pwflag[iP] == 5)
-          && TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]) >= trackVariations.at(iV)["ECut"]
-          && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["neutralTracksAbsCosThCut"];
-        if (neutralTrackSelections) {
-          Neu.at(iV) += 1;
-        }
-
-        // add to input list for thrust
-        if (chargedTrackSelections || neutralTrackSelections) {
-          selectedParts.at(iV) += 1;
-          selectedPx.at(iV).push_back(px[iP]);
-          selectedPy.at(iV).push_back(py[iP]);
-          selectedPz.at(iV).push_back(pz[iP]);
-          selectedPwflag.at(iV).push_back(pwflag[iP]);
-        }
       }
+
+      tout->Fill();
     }
 
-    // compute event level variables
-    for (int iV = 0; iV < trackVariations.size(); iV++) {
-
-      // sphericity
-      spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
-      STheta.push_back(spher->sphericityAxis().Theta());
-      // thrust
-      thrust = getThrust(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), THRUST::OPTIMAL); //, false, false, pDataReader.weight);
-      Thrust.push_back(thrust.Mag());
-
-      // compute event selection passes
-      for (int iEV = 0; iEV < eventVariations.size(); iEV++) {
-        passEventSelection.at(iEV).push_back(
-          passesNTupleAfterCut == 1
-          && TotalChgEnergy.at(iV) >= eventVariations.at(iEV)["TotalChgEnergyCut"]
-          && TMath::Abs(TMath::Cos(STheta.at(iV))) <= eventVariations.at(iEV)["AbsCosSThetaCut"]
-          && NTrk.at(iV) >= eventVariations.at(iEV)["NTrkCut"]
-          && (NTrk.at(iV) + Neu.at(iV)) >= eventVariations.at(iEV)["NeuNchCut"]
-        );
-      }
-    }
-
-    // std::cout<<passesNTupleAfterCut<<std::endl;
-    // std::cout<<TotalChgEnergy.at(0)<<", "<<eventVariations.at(0)["TotalChgEnergyCut"]<<std::endl;
-    // std::cout<<TMath::Abs(TMath::Cos(STheta.at(0)))<<", "<<eventVariations.at(0)["AbsCosSThetaCut"]<<std::endl;
-    // std::cout<<NTrk.at(0)<<", "<<eventVariations.at(0)["NTrkCut"]<<std::endl;
-    // std::cout<<NTrk.at(0) + Neu.at(0)<<", "<<eventVariations.at(0)["NeuNchCut"]<<std::endl;
-    // std::cout<<passEventSelection.at(0).at(0)<<std::endl;
-
-    // fill output tree
-    tout->Fill();
-
+    tout->Write();
+    std::cout << "\n" << std::endl;
   }
-
-  // write to output file
-  tout->Write();
 
   return 1;
 }
