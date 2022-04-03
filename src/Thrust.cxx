@@ -1,16 +1,7 @@
 /*
-
 Author: Anthony Badea
 Date: April 2, 2022
-
-Default event selections:
-// passesTotalChgEnergyMin = TotalChgEnergy >= 15;
-// passesNTrkMin = NTrk >= 5;
-// passesSTheta = TMath::Abs(TMath::Cos(STheta)) <= .82;
-// passesMissP = MissP < 20;
-// passesNeuNch = (Neu+NTrk)>=13;
-// if(nParticle < 4) continue;
-
+Analysis: MITHIG-MOD-20-001 Omnifold applied to ALEPH data
 */
 
 // root dependencies
@@ -29,6 +20,8 @@ Default event selections:
 #include <iostream>
 #include <iomanip>
 
+
+// track selection variation
 std::map<std::string, float> getTrackVariation(
   /* charged track selections */
   int nTPCcut, // 2PC paper value: 4
@@ -51,6 +44,7 @@ std::map<std::string, float> getTrackVariation(
   };
 }
 
+// event selection variation
 std::map<std::string, float> getEventVariation(
   /* event selections */
   float TotalChgEnergyCut, // 2PC paper value: 15
@@ -66,6 +60,7 @@ std::map<std::string, float> getEventVariation(
   };
 }
 
+// progressbar used during the event loop
 void pbftp(double time_diff, int nprocessed, int ntotal) {
   double rate = (double)(nprocessed + 1) / time_diff;
   std::cout << "\r > " << nprocessed << " / " << ntotal
@@ -76,6 +71,13 @@ void pbftp(double time_diff, int nprocessed, int ntotal) {
   std::cout << std::flush;
 }
 
+/**
+ * Main event loop to apply systematic variation of track and event selections to compute thrust.
+ *
+ * @param user supplies the input file.
+ * Optionally the output file name (default to input file name with .root replaced with _thrust.root) and number of events to run over (default to all).
+ * @return int and saves new root file with trees inside of it.
+ */
 int main(int argc, char* argv[]) {
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% User Input %%%%%%%%%%%%%%%%%%%%%%%%%%#
@@ -233,11 +235,11 @@ int main(int argc, char* argv[]) {
   for (int iE = 0; iE < nEvents; iE++ ) {
 
     // progressbar
-    if(!debug){
+    if (!debug) {
       elapsed_seconds = (std::chrono::system_clock::now() - time_start);
       pbftp(elapsed_seconds.count(), iE + 1, nEvents);
     }
-    
+
     t->GetEntry(iE);
 
     // reset variables
