@@ -54,14 +54,14 @@ std::map<std::string, float> getTrackVariation(
 std::map<std::string, float> getEventVariation(
   /* event selections */
   float TotalChgEnergyCut, // 2PC paper value: 15
-  float NTrkCut, // 5
   float AbsCosSThetaCut, // 0.82
+  float NTrkCut, // 5
   float NeuNchCut // 13
 ) {
   return std::map<std::string, float> {
     {"TotalChgEnergyCut", TotalChgEnergyCut},
-    {"NTrkCut", NTrkCut},
     {"AbsCosSThetaCut", AbsCosSThetaCut},
+    {"NTrkCut", NTrkCut},
     {"NeuNchCut", NeuNchCut}
   };
 }
@@ -105,12 +105,12 @@ int main(int argc, char* argv[]) {
   int maxPart = 500;
   int nParticle;
   bool passesNTupleAfterCut;
-  int pwflag[maxPart];
+  Short_t pwflag[maxPart];
   float theta[maxPart];
   float pt[maxPart];
   float d0[maxPart];
   float z0[maxPart];
-  int ntpc[maxPart];
+  Short_t ntpc[maxPart];
   float px[maxPart];
   float py[maxPart];
   float pz[maxPart];
@@ -187,9 +187,9 @@ int main(int argc, char* argv[]) {
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::vector<std::map<std::string, float> > eventVariations; // vector of variations
   // nominal values
-  eventVariations.push_back(getEventVariation(15, 5, 0.82, 13));
+  eventVariations.push_back(getEventVariation(15, 0.82, 5, 13));
   // total charged energy variation
-  eventVariations.push_back(getEventVariation(10, 5, 0.82, 13));
+  eventVariations.push_back(getEventVariation(10, 0.82, 5, 13));
 
   // save variation definitions to a tree
   std::unique_ptr<TTree> evtVarDefs (new TTree("EventVariationDefinitions", ""));
@@ -257,6 +257,8 @@ int main(int argc, char* argv[]) {
     // compute event selection variables
     for (int iP = 0; iP < nParticle; iP++) {
 
+      // std::cout<<TString::Format("%d, %d, %f, %f, %f, %f, %d", iP, pwflag[iP], theta[iP], pt[iP], d0[iP], z0[iP], ntpc[iP]) <<std::endl;
+
       // loop over variations
       for (int iV = 0; iV < trackVariations.size(); iV++) {
 
@@ -308,12 +310,19 @@ int main(int argc, char* argv[]) {
         passEventSelection.at(iEV).push_back(
           passesNTupleAfterCut == 1
           && TotalChgEnergy.at(iV) >= eventVariations.at(iEV)["TotalChgEnergyCut"]
-          && NTrk.at(iV) >= eventVariations.at(iEV)["NTrk"]
           && TMath::Abs(TMath::Cos(STheta.at(iV))) <= eventVariations.at(iEV)["AbsCosSThetaCut"]
+          && NTrk.at(iV) >= eventVariations.at(iEV)["NTrkCut"]
           && (NTrk.at(iV) + Neu.at(iV)) >= eventVariations.at(iEV)["NeuNchCut"]
         );
       }
     }
+
+    // std::cout<<passesNTupleAfterCut<<std::endl;
+    // std::cout<<TotalChgEnergy.at(0)<<", "<<eventVariations.at(0)["TotalChgEnergyCut"]<<std::endl;
+    // std::cout<<TMath::Abs(TMath::Cos(STheta.at(0)))<<", "<<eventVariations.at(0)["AbsCosSThetaCut"]<<std::endl;
+    // std::cout<<NTrk.at(0)<<", "<<eventVariations.at(0)["NTrkCut"]<<std::endl;
+    // std::cout<<NTrk.at(0) + Neu.at(0)<<", "<<eventVariations.at(0)["NeuNchCut"]<<std::endl;
+    // std::cout<<passEventSelection.at(0).at(0)<<std::endl;
 
     // fill output tree
     tout->Fill();
