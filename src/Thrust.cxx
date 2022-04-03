@@ -79,13 +79,22 @@ void pbftp(double time_diff, int nprocessed, int ntotal) {
 int main(int argc, char* argv[]) {
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% User Input %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  std::string inFileName;
-  std::string outFileName;
+  std::string inFileName = "";
+  std::string outFileName = "";
   int nEvents = -1;
   for (int i = 1; i < argc; i++) {
-    if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i+1];
-    if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i+1];
-    if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i+1]);
+    if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i + 1];
+    if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i + 1];
+    if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i + 1]);
+  }
+  if (inFileName == "") {
+    std::cout << "No input file name provided. Exiting" << std::endl;
+    return 0;
+  }
+  if (outFileName == "" && inFileName != "") {
+    outFileName = inFileName;
+    outFileName.erase(outFileName.length() - 5); // strip .root
+    outFileName += "_thrust.root";
   }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Input Data %%%%%%%%%%%%%%%%%%%%%%%%%%#
