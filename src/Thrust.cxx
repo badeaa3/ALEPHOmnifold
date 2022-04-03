@@ -82,10 +82,12 @@ int main(int argc, char* argv[]) {
   std::string inFileName = "";
   std::string outFileName = "";
   int nEvents = -1;
+  bool debug = false;
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i + 1];
     if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i + 1];
     if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i + 1]);
+    if (strncmp(argv[i], "--debug", 7) == 0) debug = true;
   }
   if (inFileName == "") {
     std::cout << "No input file name provided. Exiting" << std::endl;
@@ -231,9 +233,11 @@ int main(int argc, char* argv[]) {
   for (int iE = 0; iE < nEvents; iE++ ) {
 
     // progressbar
-    elapsed_seconds = (std::chrono::system_clock::now() - time_start);
-    pbftp(elapsed_seconds.count(), iE + 1, nEvents);
-
+    if(!debug){
+      elapsed_seconds = (std::chrono::system_clock::now() - time_start);
+      pbftp(elapsed_seconds.count(), iE + 1, nEvents);
+    }
+    
     t->GetEntry(iE);
 
     // reset variables
