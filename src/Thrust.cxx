@@ -27,6 +27,7 @@ Default event selections:
 // c++ code
 #include <vector>
 #include <iostream>
+#include <iomanip>
 
 std::map<std::string, float> getTrackVariation(
   /* charged track selections */
@@ -65,11 +66,27 @@ std::map<std::string, float> getEventVariation(
   };
 }
 
+void pbftp(double time_diff, int nprocessed, int ntotal) {
+  double rate = (double)(nprocessed + 1) / time_diff;
+  std::cout << "\r > " << nprocessed << " / " << ntotal
+            << " | "   << std::fixed << std::setprecision(1) << 100 * (double)(nprocessed) / (double)(ntotal) << "%"
+            << " | "   << std::fixed << std::setprecision(1) << rate << "Hz"
+            << " | "   << std::fixed << std::setprecision(1) << time_diff / 60 << "m elapsed"
+            << " | "   << std::fixed << std::setprecision(1) << (double)(ntotal - nprocessed) / (rate * 60) << "m remaining";
+  std::cout << std::flush;
+}
+
 int main(int argc, char* argv[]) {
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% User Input %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  std::string inFileName = "/Users/anthonybadea/Documents/ALEPH/ALEPH/LEP1Data1992_recons_aftercut-MERGED.root";
-  std::string outFileName = "thrust.root";
+  std::string inFileName;
+  std::string outFileName;
+  int nEvents = -1;
+  for (int i = 1; i < argc; i++) {
+    if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i+1];
+    if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i+1];
+    if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i+1]);
+  }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Input Data %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::unique_ptr<TFile> f (new TFile(inFileName.c_str(), "READ"));
@@ -197,8 +214,16 @@ int main(int argc, char* argv[]) {
   }
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  int nEvents = 10; //t->GetEntries();
+  if (nEvents == -1) nEvents = t->GetEntries();
+  // timekeeper
+  std::chrono::time_point<std::chrono::system_clock> time_start = std::chrono::system_clock::now();
+  std::chrono::duration<double> elapsed_seconds;
+
   for (int iE = 0; iE < nEvents; iE++ ) {
+
+    // progressbar
+    elapsed_seconds = (std::chrono::system_clock::now() - time_start);
+    pbftp(elapsed_seconds.count(), iE + 1, nEvents);
 
     t->GetEntry(iE);
 
