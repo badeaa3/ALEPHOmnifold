@@ -62,8 +62,8 @@ def aleph_to_numpy(fileName):
 
     if "LEP1Data" in fileName: # data
 
-        output = {f"{evsel}" : np.stack(np.array(file["t"][evsel])) for evsel in event_selections}
-        output["thrust"] = np.stack(np.array(file["t"]["Thrust"]))
+        output = {f"t_{evsel}" : np.stack(np.array(file["t"][evsel])) for evsel in event_selections}
+        output["t_thrust"] = np.stack(np.array(file["t"]["Thrust"]))
         return output
 
     else: # MC  
