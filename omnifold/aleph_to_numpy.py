@@ -42,10 +42,14 @@ def main():
     for key, val in output.items():
         print(f"{key} of size {val.shape}")
     
+    # save to file
+    np.savez(ops.o, **output)
+
 def options():
     ''' argument parser to handle inputs from the user '''
-    parser = argparse.ArgumentParser(usage=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser()
     parser.add_argument("-i", help="Input file")
+    parser.add_argument("-o", help="Output file name", default="test.npz")
     return parser.parse_args()
 
 def aleph_to_numpy(fileName):
