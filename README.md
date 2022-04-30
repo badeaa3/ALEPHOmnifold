@@ -13,3 +13,4 @@ In the `omnifold` folder the current analysis notebooks are listed below.
 
 Notes:
 - On January 16, 2022 Anthony ran the Linear and Log Thrust notebooks from his computer with the ALEPH data downloaded locally. The datasets are stored on MIT machines and can be moved to a better machine as desired. The path to the data is hardcoded in the notebooks so they must be updated. 
+- Quick run command of thrust systematic evaluation: g++ Thrust.cxx -o Thrust.exe `root-config --cflags --glibs`; ./Thrust.exe -i ../../ALEPH/LEP1Data1994_recons_aftercut-MERGED.root -o test.root -n 1 --debug
