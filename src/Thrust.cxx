@@ -24,6 +24,7 @@ Analysis: MITHIG-MOD-20-001 Omnifold applied to ALEPH data
 // track selection variation
 std::map<std::string, float> getTrackVariation(
   /* charged track selections */
+  int applySelection, // flag indicating if the selection should be applied to thrust and sphericity calculation
   int nTPCcut, // 2PC paper value: 4
   float chargedTracksAbsCosThCut, // 0.94
   float ptCut, // 0.2
@@ -34,6 +35,7 @@ std::map<std::string, float> getTrackVariation(
   float neutralTracksAbsCosThCut // 0.98
 ) {
   return std::map<std::string, float> {
+    {"applyTrackSelection", applySelection},
     {"nTPCcut", nTPCcut},
     {"chargedTracksAbsCosThCut", chargedTracksAbsCosThCut},
     {"ptCut", ptCut},
@@ -83,14 +85,18 @@ int main(int argc, char* argv[]) {
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% User Input %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::string inFileName = "";
   std::string outFileName = "";
-  int nEvents = -1;
+  int doNEvents = -1;
   bool debug = false;
+  size_t divide    = 1; // how many divisions the file is being cut into, which division you are on, and how many events per division
+  size_t thisdiv   = 0;
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-i", 2) == 0) inFileName = argv[i + 1];
     if (strncmp(argv[i], "-o", 2) == 0) outFileName = argv[i + 1];
     // if (strncmp(argv[i], "-t", 2) == 0) treeName = argv[i + 1];
-    if (strncmp(argv[i], "-n", 2) == 0) nEvents = std::stoi(argv[i + 1]);
+    if (strncmp(argv[i], "-n", 2) == 0) doNEvents = std::stoi(argv[i + 1]);
     if (strncmp(argv[i], "--debug", 7) == 0) debug = true;
+    if (strncmp(argv[i], "--divide", 8) == 0) divide = (size_t)(std::atoi(argv[i + 1]));
+    if (strncmp(argv[i], "--thisdiv", 9) == 0) thisdiv = (size_t)(std::atoi(argv[i + 1]));
   }
   if (inFileName == "") {
     std::cout << "No input file name provided. Exiting" << std::endl;
@@ -132,14 +138,9 @@ int main(int argc, char* argv[]) {
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Track Variations %%%%%%%%%%%%%%%%%%%%%%%%%%#
   std::vector<std::map<std::string, float> > trackVariations; // vector of variations
-  // nominal values
-  trackVariations.push_back(getTrackVariation(4, 0.94, 0.2, 2, 10, 0.4, 0.98));
-  // ntpc variations
-  for (int i = 0; i <= 7; i++) {
-    if (i != trackVariations.at(0)["nTPCcut"]) {
-      trackVariations.push_back(getTrackVariation(i, 0.94, 0.2, 2, 10, 0.4, 0.98));
-    }
-  }
+  trackVariations.push_back(getTrackVariation(0, 4, 0.94, 0.2, 2, 10, 0.4, 0.98)); // no track selection
+  trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.4, 0.98)); // 2PC track selection
+  for (int i = 5; i <= 7; i++) trackVariations.push_back(getTrackVariation(1, i, 0.94, 0.2, 2, 10, 0.4, 0.98)); // 2PC ntpc variations
 
   // vectors for selected objects
   std::vector<int> selectedParts;
@@ -152,7 +153,8 @@ int main(int argc, char* argv[]) {
   // save variation definitions to a tree
   std::unique_ptr<TTree> varDefs (new TTree("TrackVariationDefinitions", ""));
   int nTPCcut;
-  float chargedTracksAbsCosThCut, ptCut, d0Cut, z0Cut, ECut, neutralTracksAbsCosThCut;
+  float applyTrackSelection, chargedTracksAbsCosThCut, ptCut, d0Cut, z0Cut, ECut, neutralTracksAbsCosThCut;
+  varDefs->Branch("applyTrackSelection", &applyTrackSelection);
   varDefs->Branch("nTPCcut", &nTPCcut);
   varDefs->Branch("chargedTracksAbsCosThCut", &chargedTracksAbsCosThCut);
   varDefs->Branch("ptCut", &ptCut);
@@ -168,6 +170,7 @@ int main(int argc, char* argv[]) {
     selectedPy.push_back(std::vector<float>());
     selectedPz.push_back(std::vector<float>());
     selectedPwflag.push_back(std::vector<Short_t>());
+    applyTrackSelection = trackVariations.at(iV)["applyTrackSelection"];
     nTPCcut = trackVariations.at(iV)["nTPCcut"];
     chargedTracksAbsCosThCut = trackVariations.at(iV)["chargedTracksAbsCosThCut"];
     ptCut = trackVariations.at(iV)["ptCut"];
@@ -217,7 +220,7 @@ int main(int argc, char* argv[]) {
   // loop over trees
   for (auto &tree : treeNames) {
 
-    std::cout<<TString::Format("Looping over tree: %s", tree.c_str())<<std::endl;
+    std::cout << TString::Format("Looping over tree: %s", tree.c_str()) << std::endl;
 
     // load input tree
     std::unique_ptr<TTree> t ((TTree*) f->Get(tree.c_str()));
@@ -246,16 +249,29 @@ int main(int argc, char* argv[]) {
       tout->Branch(("passEventSelection_" + std::to_string(iV)).c_str(), &passEventSelection.at(iV));
     }
 
-    // do event loop
-    if (nEvents == -1) nEvents = t->GetEntries();
+    // interpret divide and thisdiv to event range
+    int nEvents = t->GetEntries();
+    int evtperdiv = nEvents / divide;
+    int startevt  = evtperdiv * thisdiv;
+    int endevt    = evtperdiv * (thisdiv + 1);
+    int ntotal    = endevt - startevt;
+    // user says do nEvents
+    if(doNEvents != -1){
+      startevt = 0;
+      endevt = doNEvents;
+      ntotal = doNEvents;
+    }
+    std::cout<<TString::Format("%d %d %d %d %d", nEvents, evtperdiv, startevt, endevt, ntotal)<<std::endl;
+    // start clock
     time_start = std::chrono::system_clock::now();
-
-    for (int iE = 0; iE < nEvents; iE++ ) {
+    for (int iE = startevt; iE < endevt; iE++) {
+      // for (int iE = 0; iE < nEvents; iE++ ) {
 
       // progressbar
       if (!debug) {
         elapsed_seconds = (std::chrono::system_clock::now() - time_start);
-        pbftp(elapsed_seconds.count(), iE + 1, nEvents);
+        // pbftp(elapsed_seconds.count(), iE + 1, nEvents);
+        pbftp(elapsed_seconds.count(), iE + 1 - startevt, ntotal);
       }
 
       t->GetEntry(iE);
@@ -281,7 +297,7 @@ int main(int argc, char* argv[]) {
       // compute event selection variables
       for (int iP = 0; iP < nParticle; iP++) {
 
-        // std::cout<<TString::Format("%d, %d, %f, %f, %f, %f, %d", iP, pwflag[iP], theta[iP], pt[iP], d0[iP], z0[iP], ntpc[iP]) <<std::endl;
+        if (debug) std::cout << TString::Format("iP %d, pwflag %d, theta %f, pt %f, d0 %f, z0 %f, ntpc %d", iP, pwflag[iP], theta[iP], pt[iP], d0[iP], z0[iP], ntpc[iP]) << std::endl;
 
         // loop over variations
         for (int iV = 0; iV < trackVariations.size(); iV++) {
@@ -294,9 +310,11 @@ int main(int argc, char* argv[]) {
             && TMath::Abs(d0[iP]) <= trackVariations.at(iV)["d0Cut"]
             && TMath::Abs(z0[iP]) <= trackVariations.at(iV)["z0Cut"]
             && ntpc[iP] >= trackVariations.at(iV)["nTPCcut"];
+          // count charged tracks
           if (chargedTrackSelections) {
             TotalChgEnergy.at(iV) += TMath::Sqrt(pmag[iP] * pmag[iP] + mass[iP] * mass[iP]);
             NTrk.at(iV) += 1;
+            if (debug) std::cout << "Passed charged track selection" << std::endl;
           }
 
           // count neutral tracks
@@ -306,18 +324,23 @@ int main(int argc, char* argv[]) {
             && TMath::Abs(cos(theta[iP])) <= trackVariations.at(iV)["neutralTracksAbsCosThCut"];
           if (neutralTrackSelections) {
             Neu.at(iV) += 1;
+            if (debug) std::cout << "Passed neutral track selection" << std::endl;
           }
 
-          // add to input list for thrust
-          if (chargedTrackSelections || neutralTrackSelections) {
+          // add to input list for thrust. check for -1 which indicates use all tracks for thrust
+          if (trackVariations.at(iV)["applyTrackSelection"] == 0 || chargedTrackSelections || neutralTrackSelections) {
             selectedParts.at(iV) += 1;
             selectedPx.at(iV).push_back(px[iP]);
             selectedPy.at(iV).push_back(py[iP]);
             selectedPz.at(iV).push_back(pz[iP]);
             selectedPwflag.at(iV).push_back(pwflag[iP]);
           }
+          else {
+            if (debug) std::cout << "Did not pass either charged or neutral track selection" << std::endl;
+          }
         }
       }
+      if (debug) std::cout << TString::Format("Nominal N Passing Charged Tracks %d, N Passing Neutral Tracks %d, and selected tracks %d", NTrk.at(0), Neu.at(0), selectedParts.at(0)) << std::endl;
 
       // compute event level variables
       for (int iV = 0; iV < trackVariations.size(); iV++) {
@@ -341,6 +364,7 @@ int main(int argc, char* argv[]) {
         }
 
       }
+      if (debug) std::cout << TString::Format("Nominal STheta %f, Thrust %f", STheta.at(0), Thrust.at(0)) << std::endl;
 
       tout->Fill();
     }
