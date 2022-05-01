@@ -223,6 +223,7 @@ int main(int argc, char* argv[]) {
     std::cout << TString::Format("Looping over tree: %s", tree.c_str()) << std::endl;
 
     // load input tree
+    bool genTree = tree == "tgen" || tree == "tgenBefore";
     std::unique_ptr<TTree> t ((TTree*) f->Get(tree.c_str()));
     t->SetBranchAddress("nParticle", &nParticle);
     t->SetBranchAddress("passesNTupleAfterCut", &passesNTupleAfterCut);
@@ -253,19 +254,18 @@ int main(int argc, char* argv[]) {
     int nEvents = t->GetEntries();
     int evtperdiv = nEvents / divide;
     int startevt  = evtperdiv * thisdiv;
-    int endevt    = (divide == (thisdiv+1)) ? nEvents : evtperdiv * (thisdiv + 1); // if the last division go till the end
+    int endevt    = (divide == (thisdiv + 1)) ? nEvents : evtperdiv * (thisdiv + 1); // if the last division go till the end
     int ntotal    = endevt - startevt;
     // user says do nEvents
-    if(doNEvents != -1){
+    if (doNEvents != -1) {
       startevt = 0;
       endevt = doNEvents;
       ntotal = doNEvents;
     }
-    std::cout<<TString::Format("Total events %d, Events per division %d, Start event %d, End event %d, Analysing %d events", nEvents, evtperdiv, startevt, endevt, ntotal)<<std::endl;
+    std::cout << TString::Format("Total events %d, Events per division %d, Start event %d, End event %d, Analysing %d events", nEvents, evtperdiv, startevt, endevt, ntotal) << std::endl;
     // start clock
     time_start = std::chrono::system_clock::now();
     for (int iE = startevt; iE < endevt; iE++) {
-      // for (int iE = 0; iE < nEvents; iE++ ) {
 
       // progressbar
       if (!debug) {
@@ -283,6 +283,7 @@ int main(int argc, char* argv[]) {
       STheta.clear();
       Thrust.clear();
       for (int iV = 0; iV < trackVariations.size(); iV++) {
+        if (genTree && iV > 0 ) break;
         selectedParts.at(iV) = 0;
         selectedPx.at(iV).clear();
         selectedPy.at(iV).clear();
@@ -301,6 +302,9 @@ int main(int argc, char* argv[]) {
 
         // loop over variations
         for (int iV = 0; iV < trackVariations.size(); iV++) {
+
+          // if tgen or tgenbefore only do the first nominal variation
+          if (genTree && iV > 0 ) break;
 
           // count charged tracks
           bool chargedTrackSelections =
@@ -328,7 +332,10 @@ int main(int argc, char* argv[]) {
           }
 
           // add to input list for thrust. check for -1 which indicates use all tracks for thrust
-          if (trackVariations.at(iV)["applyTrackSelection"] == 0 || chargedTrackSelections || neutralTrackSelections) {
+          bool keeptrack = tree == "tgen" || tree == "tgenBefore"; // generator level always keep
+          keeptrack = keeptrack || trackVariations.at(iV)["applyTrackSelection"] == 0 ; // track selection should not be applied
+          keeptrack = keeptrack || chargedTrackSelections || neutralTrackSelections; // passes selection
+          if (keeptrack) {
             selectedParts.at(iV) += 1;
             selectedPx.at(iV).push_back(px[iP]);
             selectedPy.at(iV).push_back(py[iP]);
@@ -344,6 +351,9 @@ int main(int argc, char* argv[]) {
 
       // compute event level variables
       for (int iV = 0; iV < trackVariations.size(); iV++) {
+
+        // if tgen or tgenbefore only do the first nominal variation
+        if (genTree && iV > 0 ) break;
 
         // sphericity
         spher = std::make_unique<Sphericity>(Sphericity(selectedParts.at(iV), selectedPx.at(iV).data(), selectedPy.at(iV).data(), selectedPz.at(iV).data(), selectedPwflag.at(iV).data(), false));
