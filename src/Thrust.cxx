@@ -253,7 +253,7 @@ int main(int argc, char* argv[]) {
     int nEvents = t->GetEntries();
     int evtperdiv = nEvents / divide;
     int startevt  = evtperdiv * thisdiv;
-    int endevt    = evtperdiv * (thisdiv + 1);
+    int endevt    = (divide == (thisdiv+1)) ? nEvents : evtperdiv * (thisdiv + 1); // if the last division go till the end
     int ntotal    = endevt - startevt;
     // user says do nEvents
     if(doNEvents != -1){
@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
       endevt = doNEvents;
       ntotal = doNEvents;
     }
-    std::cout<<TString::Format("%d %d %d %d %d", nEvents, evtperdiv, startevt, endevt, ntotal)<<std::endl;
+    std::cout<<TString::Format("Total events %d, Events per division %d, Start event %d, End event %d, Analysing %d events", nEvents, evtperdiv, startevt, endevt, ntotal)<<std::endl;
     // start clock
     time_start = std::chrono::system_clock::now();
     for (int iE = startevt; iE < endevt; iE++) {
