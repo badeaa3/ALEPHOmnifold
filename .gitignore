@@ -7,6 +7,8 @@ omnifold/__pycache__/
 *.npz
 *.root
 *.exe
+*.pdf
+*.DS_Store*
 
 # folders
 plots
