@@ -141,6 +141,10 @@ int main(int argc, char* argv[]) {
   trackVariations.push_back(getTrackVariation(0, 4, 0.94, 0.2, 2, 10, 0.4, 0.98)); // no track selection
   trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.4, 0.98)); // 2PC track selection
   for (int i = 5; i <= 7; i++) trackVariations.push_back(getTrackVariation(1, i, 0.94, 0.2, 2, 10, 0.4, 0.98)); // 2PC ntpc variations
+  trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.2, 0.98)); // neutral ECut variation scaling down by 1/2
+  trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.8, 0.98)); // neutral ECut variation scaling up by 2
+  trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.4, 0.96)); // neutralTracksAbsCosThCut subtracting 0.02
+  trackVariations.push_back(getTrackVariation(1, 4, 0.94, 0.2, 2, 10, 0.4, 1.00)); // neutralTracksAbsCosThCut adding 0.02
 
   // vectors for selected objects
   std::vector<int> selectedParts;
