@@ -22,7 +22,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import StandardScaler
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES']="1"
+#os.environ['CUDA_VISIBLE_DEVICES']="1"
 
 physical_devices = tf.config.list_physical_devices('GPU') 
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -53,17 +53,17 @@ bins[0] = np.linspace(0,0.5,20)
 logfile = open(sys.argv[1]+"_"+sys.argv[2]+"log.txt","w")
 
 #Read in the data
-theta_unknown_S = np.load("inputs/data_vals_reco.npy")
-pass_data = np.load("inputs/data_pass_reco.npy")
+theta_unknown_S = np.load("inputs/data_vals_reco.npy",allow_pickle=True)
+pass_data = np.load("inputs/data_pass_reco.npy",allow_pickle=True)
 theta_unknown_S = theta_unknown_S[pass_data]
 
 #Read in the MC
-theta0_S = np.load("inputs/MC_vals_reco.npy")
-theta0_G = np.load("inputs/MC_vals_truth.npy")
+theta0_S = np.load("inputs/MC_vals_reco.npy",allow_pickle=True)
+theta0_G = np.load("inputs/MC_vals_truth.npy",allow_pickle=True)
 weights_MC_sim = np.ones(len(theta0_S))
-pass_reco = np.load("inputs/MC_pass_reco.npy")
-pass_truth = np.load("inputs/MC_pass_truth.npy")
-pass_fiducial = np.load("inputs/MC_pass_truth.npy")
+pass_reco = np.load("inputs/MC_pass_reco.npy",allow_pickle=True)
+pass_truth = np.load("inputs/MC_pass_truth.npy",allow_pickle=True)
+pass_fiducial = np.load("inputs/MC_pass_truth.npy",allow_pickle=True)
 
 #Early stopping
 earlystopping = EarlyStopping(patience=10,
@@ -98,7 +98,7 @@ for iteration in range(5):
     #Process the data
     print("on iteration=",iteration," processing data for step 1, time elapsed=",time.time()-starttime)
     logfile.write("on iteration="+str(iteration)+" processing data for step 1, time elapsed="+str(time.time()-starttime)+"\n")
-
+    
     xvals_1 = np.concatenate([theta0_S[pass_reco==1],theta_unknown_S])
     yvals_1 = np.concatenate([np.zeros(len(theta0_S[pass_reco==1])),np.ones(len(theta_unknown_S))])
     weights_1 = np.concatenate([NNweights_step2[pass_reco==1]*weights_MC_sim[pass_reco==1],dataw])
@@ -220,7 +220,7 @@ for iteration in range(5):
     xvals_2 = np.concatenate([theta0_G[pass_truth==1],theta0_G[pass_truth==1]])
     yvals_2 = np.concatenate([np.zeros(len(theta0_G[pass_truth==1])),np.ones(len(theta0_G[pass_truth==1]))])
     xvals_2 = (xvals_2 - np.mean(theta_unknown_S)) / np.std(theta_unknown_S)
-
+    
     NNweights = mymodel.predict((theta0_S[pass_truth==1] - np.mean(theta_unknown_S)) / np.std(theta_unknown_S),batch_size=10000)
     NNweights = NNweights/(1.-NNweights)
     NNweights = NNweights[:,0]
@@ -231,7 +231,7 @@ for iteration in range(5):
     X_train_2, X_test_2, Y_train_2, Y_test_2, w_train_2, w_test_2 = train_test_split(xvals_2, yvals_2, weights_2,test_size=0.5)
     del xvals_2,yvals_2,weights_2
     gc.collect()
-
+    
     Y_train_2 = np.stack((Y_train_2, w_train_2), axis=1)
     Y_test_2 = np.stack((Y_test_2, w_test_2), axis=1)
     del w_train_2,w_test_2
@@ -250,7 +250,6 @@ for iteration in range(5):
     mymodel.compile(loss=weighted_binary_crossentropy,
                       optimizer=opt,
                       metrics=['accuracy'])
-
     hist_s2 =  mymodel.fit(X_train_2,Y_train_2,
               epochs=nepochs,
               batch_size=100000,
@@ -260,7 +259,7 @@ for iteration in range(5):
 
     print("on iteration=",iteration," finished step 2; time elapsed=",time.time()-starttime)
     logfile.write("on iteration="+str(iteration)+" finished step 2; time elapsed="+str(time.time()-starttime)+"\n")
-
+    
     NNweights_step2_hold = mymodel.predict((theta0_G - np.mean(theta_unknown_S)) / np.std(theta_unknown_S),batch_size=10000)
     NNweights_step2_hold = NNweights_step2_hold/(1.-NNweights_step2_hold)
     NNweights_step2_hold = NNweights_step2_hold[:,0]
