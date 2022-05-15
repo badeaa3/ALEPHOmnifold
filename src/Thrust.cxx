@@ -119,6 +119,7 @@ int main(int argc, char* argv[]) {
 
   // declare variables
   int maxPart = 500;
+  unsigned long long uniqueID;
   int nParticle;
   bool passesNTupleAfterCut;
   Short_t pwflag[maxPart];
@@ -213,9 +214,9 @@ int main(int argc, char* argv[]) {
   evtVarDefs->Write();
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Data Tree %%%%%%%%%%%%%%%%%%%%%%%%%%#
-  std::vector<float> Thrust, TotalChgEnergy, STheta;
-  std::vector<int> NTrk, Neu;
-  std::vector<std::vector<bool> > passEventSelection(eventVariations.size()); // allocate memory here without push_back to avoid copying which confuses tree->Branch
+  // std::vector<float> Thrust, TotalChgEnergy, STheta;
+  // std::vector<int> NTrk, Neu;
+  // std::vector<std::vector<bool> > passEventSelection(eventVariations.size()); // allocate memory here without push_back to avoid copying which confuses tree->Branch
 
   // #%%%%%%%%%%%%%%%%%%%%%%%%%% Event Loop %%%%%%%%%%%%%%%%%%%%%%%%%%#
 
@@ -231,6 +232,7 @@ int main(int argc, char* argv[]) {
     // load input tree
     bool genTree = tree == "tgen" || tree == "tgenBefore";
     std::unique_ptr<TTree> t ((TTree*) f->Get(tree.c_str()));
+    t->SetBranchAddress("uniqueID", &uniqueID);
     t->SetBranchAddress("nParticle", &nParticle);
     t->SetBranchAddress("passesNTupleAfterCut", &passesNTupleAfterCut);
     t->SetBranchAddress("pwflag", &pwflag);
@@ -247,6 +249,11 @@ int main(int argc, char* argv[]) {
 
     // create output tree
     std::unique_ptr<TTree> tout (new TTree(tree.c_str(), ""));
+    unsigned long long uniqueIDCopy; 
+    std::vector<float> Thrust, TotalChgEnergy, STheta;
+    std::vector<int> NTrk, Neu;
+    std::vector<std::vector<bool> > passEventSelection(eventVariations.size()); // allocate memory here without push_back to avoid copying which confuses tree->Branch
+    tout->Branch("uniqueID", &uniqueIDCopy);
     tout->Branch("Thrust", &Thrust);
     tout->Branch("TotalChgEnergy", &TotalChgEnergy);
     tout->Branch("NTrk", &NTrk);
@@ -281,6 +288,9 @@ int main(int argc, char* argv[]) {
       }
 
       t->GetEntry(iE);
+
+      // set uniqueID
+      uniqueIDCopy = uniqueID;
 
       // reset variables
       TotalChgEnergy.clear();
