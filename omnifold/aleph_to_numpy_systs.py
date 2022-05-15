@@ -55,28 +55,28 @@ def options():
 def aleph_to_numpy(fileName):
 
     # load the data file and infer type (data or mc)
-    file = uproot.open(fileName)
+    f = uproot.open(fileName)
     
     # list of relevenat event selections
-    event_selections = [f'passEventSelection_{i}' for i in range(file["EventVariationDefinitions"].num_entries)]
+    event_selections = [i for i in f['t'].keys() if 'passEventSelection' in i]
 
     if "LEP1Data" in fileName: # data
 
-        output = {f"t_{evsel}" : np.stack(np.array(file["t"][evsel])) for evsel in event_selections}
-        output["t_thrust"] = np.stack(np.array(file["t"]["Thrust"]))
+        output = {f"t_{evsel}" : np.stack(np.array(f["t"][evsel])) for evsel in event_selections}
+        output["t_thrust"] = np.stack(np.array(f["t"]["Thrust"]))
         return output
 
     else: # MC  
 
         output = {
-            "t_thrust" : np.stack(np.array(file["t"]["Thrust"])), # reco (after detector simulation)
-            "tgen_thrust" : np.stack(np.array(file["tgen"]["Thrust"])), # with hadronic event selection
-            "tgenBefore_thrust" : np.stack(np.array(file["tgenBefore"]["Thrust"])) # without hadronic event selection
+            "t_thrust" : np.stack(np.array(f["t"]["Thrust"])), # reco (after detector simulation)
+            "tgen_thrust" : np.stack(np.array(f["tgen"]["Thrust"])), # with hadronic event selection
+            "tgenBefore_thrust" : np.stack(np.array(f["tgenBefore"]["Thrust"])) # without hadronic event selection
         }
         # construct the final event selection
         for evsel in event_selections:
-            output[f"t_{evsel}"] = np.stack(np.array(file["t"][evsel]))
-            output[f"tgen_{evsel}"] = np.stack(np.array(file["t"][evsel]))
+            output[f"t_{evsel}"] = np.stack(np.array(f["t"][evsel]))
+            output[f"tgen_{evsel}"] = np.stack(np.array(f["t"][evsel]))
 
         return output
 
