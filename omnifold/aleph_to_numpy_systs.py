@@ -64,6 +64,7 @@ def aleph_to_numpy(fileName):
 
         output = {f"t_{evsel}" : np.stack(np.array(f["t"][evsel])) for evsel in event_selections}
         output["t_thrust"] = np.stack(np.array(f["t"]["Thrust"]))
+        output["t_uniqueID"] = np.array(f["t"]["uniqueID"])
         return output
 
     else: # MC  
@@ -71,7 +72,10 @@ def aleph_to_numpy(fileName):
         output = {
             "t_thrust" : np.stack(np.array(f["t"]["Thrust"])), # reco (after detector simulation)
             "tgen_thrust" : np.stack(np.array(f["tgen"]["Thrust"])), # with hadronic event selection
-            "tgenBefore_thrust" : np.stack(np.array(f["tgenBefore"]["Thrust"])) # without hadronic event selection
+            "tgenBefore_thrust" : np.stack(np.array(f["tgenBefore"]["Thrust"])), # without hadronic event selection
+            "t_uniqueID" : np.array(f["t"]["uniqueID"]),
+            "tgen_uniqueID" : np.array(f["t"]["uniqueID"]),
+            "tgenBefore_uniqueID" : np.array(f["t"]["uniqueID"]),
         }
         # construct the final event selection
         for evsel in event_selections:
